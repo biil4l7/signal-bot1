@@ -1,10 +1,11 @@
 """
 Entrypoint. Runs forever:
-  1. Fetch latest candles
-  2. Compute indicators
-  3. Check for a BUY/SELL signal on the last CLOSED candle
-  4. If new (not on cooldown) -> send Telegram alert
-  5. Sleep, repeat
+  1. For each symbol in config.SYMBOLS:
+     a. Fetch latest candles
+     b. Compute indicators
+     c. Check for a BUY/SELL signal on the last CLOSED candle
+     d. If new (not on cooldown) -> send a Telegram alert for that symbol
+  2. Sleep, repeat
 
 Run locally:   python main.py
 Run on Railway: this file is the start command (see Procfile)
@@ -20,28 +21,40 @@ from app.notifier import send_telegram_message, format_signal_message
 from app import state
 
 
-def run_once():
-    df = fetch_candles(outputsize=100)
+def check_symbol(symbol: str):
+    df = fetch_candles(symbol, outputsize=100)
     df = compute_all(df)
     signal = get_signal(df)
 
-    if signal and state.should_send(signal):
-        message = format_signal_message(signal)
+    if signal and state.should_send(symbol, signal):
+        message = format_signal_message(symbol, signal)
         send_telegram_message(message)
-        state.mark_sent(signal)
-        print(f"[main] Sent signal: {signal}")
+        state.mark_sent(symbol, signal)
+        print(f"[main] Sent {signal['type']} signal for {symbol}")
     else:
-        print(f"[main] No new signal at {df.iloc[-1]['datetime']}")
+        print(f"[main] {symbol}: no new signal at {df.iloc[-1]['datetime']}")
+
+
+def run_once():
+    for symbol in config.SYMBOLS:
+        try:
+            check_symbol(symbol)
+        except Exception as e:
+            print(f"[main] ERROR checking {symbol}: {e}")
+            traceback.print_exc()
+
+        # Small delay between symbols to respect Twelve Data's rate limit
+        time.sleep(config.SECONDS_BETWEEN_SYMBOLS)
 
 
 def main():
-    print(f"[main] Starting signal bot for {config.SYMBOL} on {config.TIMEFRAME}")
-    print(f"[main] Checking every {config.CHECK_INTERVAL_SECONDS} seconds")
+    print(f"[main] Starting signal bot for: {', '.join(config.SYMBOLS)}")
+    print(f"[main] Timeframe: {config.TIMEFRAME}, checking every {config.CHECK_INTERVAL_SECONDS} seconds")
 
-    # One-time startup confirmation so you know the bot + Telegram are connected,
-    # without waiting for a real trading signal.
     send_telegram_message(
-        f"✅ Signal bot is online.\nSymbol: {config.SYMBOL}\nTimeframe: {config.TIMEFRAME}\n"
+        f"✅ *Signal bot is online*\n"
+        f"Tracking: `{', '.join(config.SYMBOLS)}`\n"
+        f"Timeframe: `{config.TIMEFRAME}`\n"
         f"Checking every {config.CHECK_INTERVAL_SECONDS} seconds."
     )
 
