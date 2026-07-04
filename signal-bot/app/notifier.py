@@ -9,6 +9,22 @@ Sends alerts to your Telegram. Setup (one-time, 2 minutes):
 import requests
 from app import config
 
+# A little personality per asset type, purely cosmetic.
+_ASSET_EMOJI = {
+    "BTC": "🟠",
+    "ETH": "🔷",
+    "SOL": "🟣",
+    "XAU": "🥇",
+    "EUR": "💶",
+    "GBP": "💷",
+    "USD": "💵",
+}
+
+
+def _emoji_for_symbol(symbol: str) -> str:
+    base = symbol.split("/")[0].upper()
+    return _ASSET_EMOJI.get(base, "📈")
+
 
 def send_telegram_message(text: str) -> None:
     if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
@@ -29,14 +45,19 @@ def send_telegram_message(text: str) -> None:
         print(f"[notifier] Failed to send Telegram message: {e}")
 
 
-def format_signal_message(signal: dict) -> str:
-    emoji = "🟢" if signal["type"] == "BUY" else "🔴"
+def format_signal_message(symbol: str, signal: dict) -> str:
+    asset_emoji = _emoji_for_symbol(symbol)
+    direction_emoji = "🟢⬆️" if signal["type"] == "BUY" else "🔴⬇️"
+    action_word = "BUY" if signal["type"] == "BUY" else "SELL"
+
     return (
-        f"{emoji} *{signal['type']} SIGNAL*\n"
-        f"Symbol: `{config.SYMBOL}`\n"
-        f"Timeframe: `{config.TIMEFRAME}`\n"
-        f"Price: `{signal['price']}`\n"
-        f"RSI: `{signal['rsi']}`\n"
-        f"Candle time: `{signal['time']}`\n\n"
-        f"_This is not financial advice. Confirm before acting._"
+        f"{direction_emoji} *{action_word} SIGNAL* {asset_emoji}\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"*Symbol:* `{symbol}`\n"
+        f"*Timeframe:* `{config.TIMEFRAME}`\n"
+        f"*Price:* `{signal['price']}`\n"
+        f"*RSI:* `{signal['rsi']}`\n"
+        f"*Candle time:* `{signal['time']}`\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"_Not financial advice - confirm before acting._"
     )
