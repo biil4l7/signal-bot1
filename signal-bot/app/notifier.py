@@ -45,6 +45,35 @@ def send_telegram_message(text: str) -> None:
         print(f"[notifier] Failed to send Telegram message: {e}")
 
 
+def broadcast_message(text: str) -> None:
+    """
+    Sends a message to every subscriber who has /start'd the bot.
+    This is what makes the bot "public" - anyone who subscribes gets alerts.
+    """
+    from app import subscribers  # imported here to avoid circular import
+
+    if not config.TELEGRAM_BOT_TOKEN:
+        print("[notifier] Telegram not configured, skipping broadcast. Message was:")
+        print(text)
+        return
+
+    chat_ids = subscribers.load_subscribers()
+    if not chat_ids:
+        print("[notifier] No subscribers yet, nothing to broadcast.")
+        return
+
+    url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
+    for chat_id in chat_ids:
+        try:
+            requests.post(
+                url,
+                json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+                timeout=10,
+            )
+        except Exception as e:
+            print(f"[notifier] Failed to send to {chat_id}: {e}")
+
+
 def format_signal_message(symbol: str, signal: dict) -> str:
     asset_emoji = _emoji_for_symbol(symbol)
     direction_emoji = "🟢⬆️" if signal["type"] == "BUY" else "🔴⬇️"
