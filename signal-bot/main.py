@@ -1,11 +1,9 @@
 """
-Entrypoint. Runs forever:
-  1. For each symbol in config.SYMBOLS:
-     a. Fetch latest candles
-     b. Compute indicators
-     c. Check for a BUY/SELL signal on the last CLOSED candle
-     d. If new (not on cooldown) -> send a Telegram alert for that symbol
-  2. Sleep, repeat
+Entrypoint. Runs two things at once:
+  1. A background listener thread that responds to /start and /stop from
+     ANY Telegram user - this is what makes the bot public.
+  2. The main loop: for each tracked symbol, check for a BUY/SELL signal
+     and broadcast it to every subscriber.
 
 Run locally:   python main.py
 Run on Railway: this file is the start command (see Procfile)
@@ -17,8 +15,9 @@ from app import config
 from app.data_fetcher import fetch_candles
 from app.indicators import compute_all
 from app.strategy import get_signal
-from app.notifier import send_telegram_message, format_signal_message
+from app.notifier import broadcast_message, format_signal_message
 from app import state
+from app.telegram_listener import start_listener_thread
 
 
 def check_symbol(symbol: str):
@@ -28,9 +27,9 @@ def check_symbol(symbol: str):
 
     if signal and state.should_send(symbol, signal):
         message = format_signal_message(symbol, signal)
-        send_telegram_message(message)
+        broadcast_message(message)
         state.mark_sent(symbol, signal)
-        print(f"[main] Sent {signal['type']} signal for {symbol}")
+        print(f"[main] Broadcast {signal['type']} signal for {symbol}")
     else:
         print(f"[main] {symbol}: no new signal at {df.iloc[-1]['datetime']}")
 
@@ -43,20 +42,15 @@ def run_once():
             print(f"[main] ERROR checking {symbol}: {e}")
             traceback.print_exc()
 
-        # Small delay between symbols to respect Twelve Data's rate limit
         time.sleep(config.SECONDS_BETWEEN_SYMBOLS)
 
 
 def main():
-    print(f"[main] Starting signal bot for: {', '.join(config.SYMBOLS)}")
+    print(f"[main] Starting PUBLIC signal bot for: {', '.join(config.SYMBOLS)}")
     print(f"[main] Timeframe: {config.TIMEFRAME}, checking every {config.CHECK_INTERVAL_SECONDS} seconds")
 
-    send_telegram_message(
-        f"✅ *Signal bot is online*\n"
-        f"Tracking: `{', '.join(config.SYMBOLS)}`\n"
-        f"Timeframe: `{config.TIMEFRAME}`\n"
-        f"Checking every {config.CHECK_INTERVAL_SECONDS} seconds."
-    )
+    # Start listening for /start and /stop from anyone, in the background
+    start_listener_thread()
 
     while True:
         try:
