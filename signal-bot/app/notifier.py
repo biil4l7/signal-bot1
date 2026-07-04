@@ -26,6 +26,11 @@ def _emoji_for_symbol(symbol: str) -> str:
     return _ASSET_EMOJI.get(base, "📈")
 
 
+def emoji_for_symbol(symbol: str) -> str:
+    """Public wrapper so other modules (like the command listener) can use this."""
+    return _emoji_for_symbol(symbol)
+
+
 def send_telegram_message(text: str) -> None:
     if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
         print("[notifier] Telegram not configured, skipping. Message was:")
