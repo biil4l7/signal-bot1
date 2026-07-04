@@ -9,8 +9,18 @@ load_dotenv()  # only does anything locally; Railway injects env vars directly
 
 # --- Market data (Twelve Data) ---
 TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "")
-SYMBOL = os.getenv("SYMBOL", "EUR/USD")          # e.g. EUR/USD, BTC/USD, AAPL
+
+# Comma-separated list of symbols to track, e.g:
+# SYMBOLS=EUR/USD,XAU/USD,BTC/USD,ETH/USD,SOL/USD
+# XAU/USD = gold, BTC/USD = Bitcoin, ETH/USD = Ethereum, SOL/USD = Solana
+_raw_symbols = os.getenv("SYMBOLS", "EUR/USD,XAU/USD,BTC/USD,ETH/USD,SOL/USD")
+SYMBOLS = [s.strip() for s in _raw_symbols.split(",") if s.strip()]
+
 TIMEFRAME = os.getenv("TIMEFRAME", "15min")      # 1min,5min,15min,1h,4h,1day
+
+# Seconds to wait between checking each symbol within one cycle, to avoid
+# hitting Twelve Data's free-tier rate limit (8 requests/minute).
+SECONDS_BETWEEN_SYMBOLS = int(os.getenv("SECONDS_BETWEEN_SYMBOLS", "8"))
 
 # --- Strategy parameters ---
 FAST_MA_PERIOD = int(os.getenv("FAST_MA_PERIOD", "9"))
