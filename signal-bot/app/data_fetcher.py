@@ -1,7 +1,8 @@
 """
 Pulls candle (OHLC) data from Twelve Data's REST API.
 Works from anywhere with internet access - no broker terminal required.
-Free tier: https://twelvedata.com/pricing (enough for one symbol every 5 min).
+Free tier: https://twelvedata.com/pricing (8 requests/minute - the bot
+spaces out requests across symbols to respect this).
 """
 import requests
 import pandas as pd
@@ -10,13 +11,13 @@ from app import config
 BASE_URL = "https://api.twelvedata.com/time_series"
 
 
-def fetch_candles(outputsize: int = 100) -> pd.DataFrame:
+def fetch_candles(symbol: str, outputsize: int = 100) -> pd.DataFrame:
     """
     Returns a DataFrame with columns: datetime, open, high, low, close
-    Sorted oldest -> newest.
+    Sorted oldest -> newest, for the given symbol.
     """
     params = {
-        "symbol": config.SYMBOL,
+        "symbol": symbol,
         "interval": config.TIMEFRAME,
         "outputsize": outputsize,
         "apikey": config.TWELVE_DATA_API_KEY,
