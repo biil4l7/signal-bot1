@@ -1,39 +1,40 @@
 """
-Keeps track of the last signal sent so the bot doesn't spam you with
-the same alert repeatedly (cooldown window) or resend an alert for a
-candle it already reported.
+Keeps track of the last signal sent PER SYMBOL so the bot doesn't spam you
+with the same alert repeatedly (cooldown window) or resend an alert for a
+candle it already reported - each symbol tracked independently.
 """
 from datetime import datetime, timedelta
 from app import config
 
-_last_signal_type = None
-_last_signal_time = None
-_last_candle_time = None
+# symbol -> {"type": "BUY"/"SELL", "sent_at": datetime, "candle_time": ...}
+_last_signal_by_symbol = {}
 
 
-def should_send(signal: dict) -> bool:
-    global _last_signal_type, _last_signal_time, _last_candle_time
-
+def should_send(symbol: str, signal: dict) -> bool:
     if signal is None:
         return False
 
-    # Never re-alert the same candle twice (covers process restarts within a run)
-    if _last_candle_time == signal["time"]:
+    last = _last_signal_by_symbol.get(symbol)
+    if last is None:
+        return True
+
+    # Never re-alert the same candle twice for this symbol
+    if last["candle_time"] == signal["time"]:
         return False
 
-    # Cooldown: same signal type repeated too soon
+    # Cooldown: same signal type repeated too soon for this symbol
     if (
-        _last_signal_type == signal["type"]
-        and _last_signal_time is not None
-        and datetime.utcnow() - _last_signal_time < timedelta(minutes=config.COOLDOWN_MINUTES)
+        last["type"] == signal["type"]
+        and datetime.utcnow() - last["sent_at"] < timedelta(minutes=config.COOLDOWN_MINUTES)
     ):
         return False
 
     return True
 
 
-def mark_sent(signal: dict) -> None:
-    global _last_signal_type, _last_signal_time, _last_candle_time
-    _last_signal_type = signal["type"]
-    _last_signal_time = datetime.utcnow()
-    _last_candle_time = signal["time"]
+def mark_sent(symbol: str, signal: dict) -> None:
+    _last_signal_by_symbol[symbol] = {
+        "type": signal["type"],
+        "sent_at": datetime.utcnow(),
+        "candle_time": signal["time"],
+    }
