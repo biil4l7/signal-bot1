@@ -38,6 +38,13 @@ def main():
     print(f"[main] Starting signal bot for {config.SYMBOL} on {config.TIMEFRAME}")
     print(f"[main] Checking every {config.CHECK_INTERVAL_SECONDS} seconds")
 
+    # One-time startup confirmation so you know the bot + Telegram are connected,
+    # without waiting for a real trading signal.
+    send_telegram_message(
+        f"✅ Signal bot is online.\nSymbol: {config.SYMBOL}\nTimeframe: {config.TIMEFRAME}\n"
+        f"Checking every {config.CHECK_INTERVAL_SECONDS} seconds."
+    )
+
     while True:
         try:
             run_once()
