@@ -33,6 +33,13 @@ RSI_OVERSOLD = float(os.getenv("RSI_OVERSOLD", "30"))
 CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "300"))  # 5 min
 COOLDOWN_MINUTES = int(os.getenv("COOLDOWN_MINUTES", "60"))  # don't repeat same signal
 
+# How long to wait after a signal before checking if it was "right"
+REVIEW_MINUTES = int(os.getenv("REVIEW_MINUTES", "60"))
+
+# How long cached price data stays valid before re-fetching (shared between
+# the scheduled loop and manual /check commands, to save API calls)
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "60"))
+
 # --- Telegram ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
