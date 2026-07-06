@@ -6,8 +6,8 @@ Runs in its own thread, separate from the main signal-checking loop.
 import time
 import threading
 import requests
-from app import config, subscribers
-from app.data_fetcher import fetch_candles
+from app import config, subscribers, history
+from app.cache import get_cached_candles
 from app.indicators import compute_all
 from app.strategy import get_signal
 from app.notifier import format_signal_message, emoji_for_symbol
@@ -40,6 +40,7 @@ def register_bot_commands() -> None:
         {"command": "stop", "description": "Unsubscribe from alerts"},
         {"command": "check", "description": "Check all symbols now (or /check BTC/USD for one)"},
         {"command": "list", "description": "Show tracked symbols"},
+        {"command": "stats", "description": "See signal accuracy track record"},
         {"command": "help", "description": "Show what this bot does"},
     ]
     try:
@@ -59,7 +60,7 @@ def _normalize_symbol(raw: str) -> str:
 
 def _check_one_symbol(symbol: str) -> dict:
     """Fetches and evaluates one symbol. Returns a small result dict."""
-    df = fetch_candles(symbol, outputsize=100)
+    df = get_cached_candles(symbol, outputsize=100, ttl_seconds=config.CACHE_TTL_SECONDS)
     df = compute_all(df)
     signal = get_signal(df)
     last = df.iloc[-2]
@@ -114,7 +115,7 @@ def _handle_check(chat_id: int, text: str) -> None:
     _send(chat_id, f"🔎 Checking `{symbol}`, one sec...")
 
     try:
-        df = fetch_candles(symbol, outputsize=100)
+        df = get_cached_candles(symbol, outputsize=100, ttl_seconds=config.CACHE_TTL_SECONDS)
         df = compute_all(df)
         signal = get_signal(df)
         last = df.iloc[-2]
@@ -134,6 +135,37 @@ def _handle_check(chat_id: int, text: str) -> None:
     except Exception as e:
         _send(chat_id, f"Couldn't fetch `{symbol}` - check the symbol is valid (e.g. EUR/USD, BTC/USD, XAU/USD).")
         print(f"[listener] /check error for {symbol}: {e}")
+
+
+def _handle_stats(chat_id: int) -> None:
+    overall = history.get_stats()
+
+    lines = [
+        "📈 *SIGNAL TRACK RECORD*",
+        "━━━━━━━━━━━━━━━",
+    ]
+
+    if overall["total_evaluated"] == 0:
+        lines.append("No signals have been graded yet.")
+        lines.append(f"_Signals are reviewed {config.REVIEW_MINUTES} min after they fire._")
+    else:
+        lines.append(f"*Overall win rate:* `{overall['win_rate']}%`")
+        lines.append(f"*Correct:* {overall['correct']}  |  *Incorrect:* {overall['incorrect']}")
+        lines.append(f"*Pending review:* {overall['pending']}")
+        lines.append("━━━━━━━━━━━━━━━")
+        lines.append("*Per symbol:*")
+
+        for symbol in config.SYMBOLS:
+            s = history.get_stats(symbol)
+            emoji = emoji_for_symbol(symbol)
+            if s["total_evaluated"] == 0:
+                lines.append(f"{emoji} {symbol} — no graded signals yet")
+            else:
+                lines.append(f"{emoji} {symbol} — `{s['win_rate']}%` ({s['correct']}/{s['total_evaluated']})")
+
+    lines.append("━━━━━━━━━━━━━━━")
+    lines.append("_Past accuracy isn't a guarantee of future results._")
+    _send(chat_id, "\n".join(lines))
 
 
 def _handle_message(message: dict) -> None:
@@ -167,18 +199,23 @@ def _handle_message(message: dict) -> None:
     elif text.startswith("/list"):
         _send(chat_id, f"📋 *Currently tracked symbols:*\n`{', '.join(config.SYMBOLS)}`")
 
+    elif text.startswith("/stats"):
+        _handle_stats(chat_id)
+
     elif text.startswith("/help"):
         _send(
             chat_id,
             "*What I do:*\n"
             "I watch price charts and alert you when a moving-average "
-            "crossover + RSI condition suggests a possible buy or sell.\n\n"
+            "crossover + RSI condition suggests a possible buy or sell. "
+            "I also grade my own past signals and track accuracy.\n\n"
             "*Commands:*\n"
             "/start - subscribe to alerts\n"
             "/stop - unsubscribe\n"
             "/check - check ALL tracked symbols right now\n"
             "/check SYMBOL - check just one, e.g. /check BTC/USD\n"
-            "/list - see tracked symbols\n\n"
+            "/list - see tracked symbols\n"
+            "/stats - see signal accuracy track record\n\n"
             "_Not financial advice - always confirm before trading._",
         )
 
