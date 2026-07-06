@@ -1,6 +1,7 @@
 # Environment / secrets
 .env
 data/subscribers.json
+data/signal_history.json
 
 # Python
 __pycache__/
