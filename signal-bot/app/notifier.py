@@ -96,3 +96,28 @@ def format_signal_message(symbol: str, signal: dict) -> str:
         f"━━━━━━━━━━━━━━━\n"
         f"_Not financial advice - confirm before acting._"
     )
+
+
+def format_review_message(symbol: str, record: dict, exit_price: float, correct: bool) -> str:
+    """
+    The 'was the last signal right?' feedback message, sent automatically
+    once REVIEW_MINUTES has passed since a signal fired.
+    """
+    asset_emoji = _emoji_for_symbol(symbol)
+    result_emoji = "✅" if correct else "❌"
+    result_word = "CORRECT" if correct else "INCORRECT"
+
+    entry_price = record["entry_price"]
+    change_pct = round(100 * (exit_price - entry_price) / entry_price, 2)
+    change_str = f"+{change_pct}%" if change_pct >= 0 else f"{change_pct}%"
+
+    return (
+        f"{result_emoji} *SIGNAL REVIEW* {asset_emoji}\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"*Symbol:* `{symbol}`\n"
+        f"*Called:* `{record['type']}` @ `{entry_price}`\n"
+        f"*Now:* `{exit_price}`  ({change_str})\n"
+        f"*Result:* {result_word} {result_emoji}\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"_Based on price move after {config.REVIEW_MINUTES} min. Use /stats for your overall track record._"
+    )
